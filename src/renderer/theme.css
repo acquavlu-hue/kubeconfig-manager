@@ -1,0 +1,245 @@
+.appearance-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.theme-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+}
+
+.theme-field select {
+  font: inherit;
+  color: inherit;
+  background: #f7f9f7;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  min-width: 108px;
+}
+
+.theme-field select:focus-visible {
+  outline: 2px solid #3ba995;
+  outline-offset: 2px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    color: #e1ede6;
+    background: #101714;
+    --sidebar: #131e1a;
+    --border: #32453c;
+    --surface: #19251f;
+    --surface-muted: #151f1a;
+    --surface-raised: #22322a;
+    --surface-hover: #283c32;
+    --surface-active: #254437;
+    --muted: #a6bbb0;
+    --teal: #8cdbb7;
+    --warning: #f0c49e;
+    --warning-surface: #32251e;
+    --warning-border: #624832;
+  }
+
+  ::selection {
+    background: #37674f;
+    color: #fff;
+  }
+
+  .topbar, .detail-panel, .table-head, .modal-footer, .modal-tabs,
+  .folder-picker, .folder-explanation, .upload-zone {
+    background: var(--surface-muted);
+    border-color: var(--border);
+  }
+
+  .workspace, .tray-tip, .context-list, .vault-card, .command-list,
+  .settings-card, .folder-header, .modal {
+    background: var(--surface);
+    border-color: var(--border);
+  }
+
+  .sidebar, .version, .list-toolbar, .list-footer, .command-item, .settings-note,
+  .stats > div {
+    border-color: var(--border);
+  }
+
+  .nav-count, .workspace-avatar, .avatar, kbd, .namespace-tag, .context-symbol,
+  .detail-symbol, .code-line, .path-display, .coming-badge, .modal-icon,
+  .tray-tip kbd, .search-box kbd, .vault-art > span, .upload-zone > div {
+    background: var(--surface-raised);
+    border-color: var(--border);
+    color: var(--muted);
+  }
+
+  .brand, h1, .detail-name, .topbar strong, .stats strong, .empty-state h3,
+  .detail-placeholder h3, .vault-card h2, .command-item h3, .settings-card h3,
+  .folder-header-info strong, .folder-explanation strong, .folder-picker strong,
+  .modal h2, .upload-zone h3, .context-name > strong, dd {
+    color: #e1ede6;
+  }
+
+  .brand > div > span, .workspace small, .workspace > svg, .nav-label,
+  .nav-item, .tray-tip p, .tray-tip > svg, .local-status, .local-pill, .version,
+  .topbar, .eyebrow, h1 + p, .stats > div > span, .stats > div > svg,
+  .stats-hint, .table-head, .context-name > small, .list-footer,
+  .detail-heading, .detail-heading > svg, .detail-status, .detail-fields dt,
+  .namespace-form > label, .endpoint, .detail-fields dd code,
+  .detail-placeholder, .detail-placeholder p, .empty-state p, .file-footer,
+  .file-footer > span:nth-child(2), .file-footer > svg, .file-footer > button,
+  .vault-card > p, .vault-steps .muted, .command-item p, .code-line > span,
+  .settings-card p, .settings-note, .settings-note code, .modal-subtitle,
+  .modal-tabs > button, .upload-zone p, .upload-zone > span, .field-label,
+  .field-label > span, .field-label small, .manual-fields details, .import-note,
+  .import-note > svg, .folder-nav-heading, .folder-header-info > code,
+  .folder-header-info small, .folder-picker code, .checkbox-label,
+  .folder-explanation p, .isolated-shell-note, .search-box > svg, .row-state,
+  .favorite-button {
+    color: var(--muted);
+  }
+
+  .logo, .heading-dot, .detail-status.active, .row-state.is-active,
+  .vault-steps, .code-line > code, .section-heading > svg, .backup-card > svg,
+  .file-footer > button:hover {
+    color: var(--teal);
+  }
+
+  .nav-item.active, .context-row.selected, .context-symbol.active,
+  .modal-tabs > button.active, .already-active {
+    background: var(--surface-active);
+    border-color: #3c6350;
+    color: var(--teal);
+  }
+
+  .nav-item:hover, .context-row:hover {
+    background: var(--surface-hover);
+  }
+
+  .nav-item.active:hover, .context-row.selected:hover {
+    background: var(--surface-active);
+  }
+
+  .button.primary {
+    color: #10251a;
+    background: #8cdbb7;
+    border-color: #8cdbb7;
+    box-shadow: none;
+  }
+
+  .button.primary:hover:not(:disabled) {
+    background: #a6e7ca;
+    box-shadow: none;
+  }
+
+  .button.secondary, .shell-banner button, .theme-field select {
+    color: #e1ede6;
+    background: var(--surface-raised);
+    border-color: var(--border);
+    box-shadow: none;
+  }
+
+  .button.secondary:hover:not(:disabled), .shell-banner button:hover {
+    background: var(--surface-hover);
+  }
+
+  .button.quiet, .detail-actions .button.quiet, .icon-button {
+    color: var(--muted);
+  }
+
+  .button.quiet:hover, .detail-actions .button.quiet:hover,
+  .icon-button:hover:not(:disabled) {
+    color: var(--teal);
+  }
+
+  .icon-button:hover:not(:disabled) {
+    background: var(--surface-hover);
+  }
+
+  .refresh-button {
+    border-color: var(--border);
+  }
+
+  .favorite-button.is-favorite, .favorite-button:hover {
+    color: #e9c878;
+  }
+
+  .current-card {
+    background: #1a392e;
+    box-shadow: inset 0 0 0 1px #345e4c;
+  }
+
+  .current-meta, .current-right > span + span {
+    color: #b0cdbf;
+  }
+
+  .info-note, .shell-banner, .isolated-actions, .folder-header-icon, .toast {
+    background: #1e352a;
+    border-color: #3c5b4c;
+    color: #bcddcb;
+  }
+
+  .info-note code {
+    background: var(--surface-raised);
+  }
+
+  .empty-graphic {
+    color: var(--muted);
+    background: radial-gradient(var(--surface-raised) 50%, transparent 52%);
+  }
+
+  .empty-graphic:before {
+    border-color: var(--border);
+  }
+
+  .empty-graphic svg + svg {
+    color: var(--teal);
+  }
+
+  .vault-art {
+    background: radial-gradient(var(--surface-active), var(--surface-muted));
+    border-color: var(--border);
+    color: var(--teal);
+  }
+
+  .modal-backdrop {
+    background: #070e0ac9;
+  }
+
+  .modal {
+    box-shadow: 0 25px 90px #0008;
+  }
+
+  .namespace-form > div, .folder-rename input,
+  .field-label input, .field-label textarea, .field-label .yaml-input {
+    background: var(--surface-muted);
+    border-color: var(--border);
+    color: #e1ede6;
+  }
+
+  .search-box input, .namespace-form input {
+    color: #e1ede6;
+  }
+
+  .search-box input::placeholder, .field-label input::placeholder,
+  .field-label textarea::placeholder {
+    color: var(--muted);
+  }
+
+  .checkbox-label input {
+    accent-color: var(--teal);
+  }
+
+  .error-banner, .toast.error, .modal-error, .folder-problems {
+    color: var(--warning);
+    background: var(--warning-surface);
+    border-color: var(--warning-border);
+  }
+
+  .folder-inline-error, .folder-header-actions > span {
+    color: var(--warning);
+  }
+}
