@@ -30,8 +30,7 @@ export async function readSettings(): Promise<Settings> {
 export function expandPath(path: string): string {
   return resolve(path === '~' ? homedir() : path.startsWith('~/') ? join(homedir(), path.slice(2)) : path);
 }
-export async function configPath(explicit?: string): Promise<string> {
-  if (explicit) return expandPath(explicit);
+export async function configPath(): Promise<string> {
   return resolveConfigPath(await readSettings());
 }
 export function resolveConfigPath(settings: Settings, explicit?: string): string {

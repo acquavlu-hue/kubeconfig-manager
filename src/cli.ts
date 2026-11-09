@@ -1,14 +1,20 @@
 import { parseArgs } from 'node:util';
 import { readFile } from 'node:fs/promises';
+import { basename } from 'node:path';
 import { KubeconfigManager } from './core/kubeconfig';
 import { configPath, expandPath, saveConfigPath } from './core/settings';
-import { ContextWorkspace } from './core/workspace';
+import { ContextWorkspace, contextId, selectFolder, STANDARD_FOLDER } from './core/workspace';
 import { environmentCommand } from './core/shell';
 import { prepareIsolatedSession, runIsolatedSession } from './core/isolated-shell';
-import { contextId } from './core/workspace';
-import { basename } from 'node:path';
+import { shellQuote } from './shared/shell-quote';
 import type { Snapshot, WorkspaceContext, WorkspaceSnapshot } from './shared/types';
 const isWorkspace = (state: Snapshot): state is WorkspaceSnapshot => Array.isArray((state as WorkspaceSnapshot).folders);
+const defaultShell = process.platform === 'win32' ? 'powershell' : 'bash';
+
+function activeContext(state: Snapshot) {
+  if (isWorkspace(state)) return state.contexts.find(context => context.id === state.currentId);
+  return state.contexts.find(context => context.name === state.current);
+}
 
 const help = `KubeContext · kcm
 
@@ -67,7 +73,7 @@ async function run(): Promise<void> {
       if (values.json) console.log(JSON.stringify(folders, null, 2));
       else for (const folder of folders) console.log(`${display(folder.name)}\t${folder.contextCount} contesti\t${folder.id}\t${display(folder.path)}${folder.issues.length ? `\t${folder.issues.length} problemi` : ''}`);
     } else if (['remove', 'rename'].includes(action) && target && !path) {
-      const folder = (await workspace.snapshot()).folders.find(item => item.id === target || item.name.toLowerCase() === target.toLowerCase());
+      const folder = selectFolder((await workspace.snapshot()).folders, target);
       if (!folder || folder.kind === 'standard') throw new Error('Cartella cliente non trovata.');
       if (action === 'remove') await workspace.removeFolder(folder.id);
       else { if (!values.name) throw new Error('Specifica --name <nuovo nome>.'); await workspace.renameFolder(folder.id, values.name); }
@@ -117,14 +123,20 @@ complete -c kcm -n '__fish_seen_subcommand_from use shell' -a '(kcm list --names
     console.log(values.json ? JSON.stringify({ path }) : path);
     return;
   }
-  const manager = new KubeconfigManager(await configPath(values.kubeconfig));
+  const direct = values.kubeconfig ? new KubeconfigManager(expandPath(values.kubeconfig)) : undefined;
+  if (direct && (values.folder || values.file)) throw new Error('Usa --folder e --file senza --kubeconfig.');
+  const snapshot = () => direct?.snapshot() ?? workspace.snapshot();
+  const standard = async () => direct ?? new KubeconfigManager(await configPath());
   switch (command) {
-    case 'path': console.log(values.json ? JSON.stringify({ path: manager.path }) : manager.path); break;
+    case 'path': {
+      const { path } = await standard();
+      console.log(values.json ? JSON.stringify({ path }) : path);
+      break;
+    }
     case 'list': {
-      const state = values.kubeconfig ? await manager.snapshot() : await workspace.snapshot();
-      if (values.folder) {
-        if (!isWorkspace(state)) throw new Error('Usa --folder senza --kubeconfig.');
-        const folder = state.folders.find(item => item.id === values.folder || item.name.toLowerCase() === values.folder!.toLowerCase());
+      const state = await snapshot();
+      if (isWorkspace(state) && values.folder) {
+        const folder = selectFolder(state.folders, values.folder);
         if (!folder) throw new Error(`Cartella non trovata: ${values.folder}`);
         state.contexts = state.contexts.filter(context => context.folderId === folder.id);
       }
@@ -147,37 +159,37 @@ complete -c kcm -n '__fish_seen_subcommand_from use shell' -a '(kcm list --names
       break;
     }
     case 'current': {
-      const state = values.kubeconfig ? await manager.snapshot() : await workspace.snapshot();
-      const { current } = state;
-      console.log(values.json ? JSON.stringify({ current, ...(isWorkspace(state) ? { path: state.activePath, folderId: state.activeFolderId } : { path: manager.path }) }) : display(current));
+      const state = await snapshot();
+      const current = activeContext(state)?.name ?? '';
+      console.log(values.json ? JSON.stringify({ current, ...(isWorkspace(state) ? { path: state.activePath, folderId: state.activeFolderId } : { path: state.path }) }) : display(current));
       if (!current) process.exitCode = 1;
       break;
     }
     case 'use': {
-      const state = values.kubeconfig ? await manager.use(required()) : await workspace.use(required(), values.folder, values.file);
+      const state = direct ? await direct.use(required()) : await workspace.use(required(), values.folder, values.file);
       console.log(values.json ? JSON.stringify(state) : `Contesto attivo: ${display(state.current)}`);
       break;
     }
     case 'shell': {
       if (values.json) throw new Error('kcm shell apre una sessione interattiva e non supporta --json.');
       let context: WorkspaceContext;
-      if (values.kubeconfig) {
-        const state = await manager.snapshot();
+      if (direct) {
+        const state = await direct.snapshot();
         const name = argument || state.current;
         const found = state.contexts.find(item => item.name === name);
         if (!found) throw new Error('Contesto non trovato nel file specificato. Indica il nome dopo kcm shell.');
-        context = { ...found, id: contextId('standard', manager.path, name), folderId: 'standard', folderName: 'Standard', filePath: manager.path, relativePath: basename(manager.path) };
+        context = { ...found, id: contextId(STANDARD_FOLDER, direct.path, name), folderId: STANDARD_FOLDER, folderName: 'Standard', filePath: direct.path, relativePath: basename(direct.path) };
       } else {
         const selected = argument || (await workspace.snapshot()).currentId;
         if (!selected) throw new Error('Indica un contesto: kcm shell <nome> [--folder <cliente>].');
-        context = await workspace.find(selected, values.folder, values.file);
+        context = await workspace.find(argument ? selected : { id: selected }, values.folder, values.file);
       }
       const session = await prepareIsolatedSession(context, values.shell);
       process.exitCode = await runIsolatedSession(session);
       break;
     }
     case 'import': {
-      const result = await manager.importFile(expandPath(required()), values.prefix);
+      const result = await (await standard()).importFile(expandPath(required()), values.prefix);
       console.log(values.json ? JSON.stringify(result) : `Importati ${result.added.length} contesti; ${result.skipped.length} già presenti.${result.backup ? `\nBackup: ${result.backup}` : ''}`);
       break;
     }
@@ -197,24 +209,28 @@ complete -c kcm -n '__fish_seen_subcommand_from use shell' -a '(kcm list --names
         token = Buffer.concat(chunks).toString('utf8').trim();
         if (!token) throw new Error('Token vuoto.');
       }
-      const result = await manager.add({ name, server: values.server, namespace: values.namespace, token,
+      const result = await (await standard()).add({ name, server: values.server, namespace: values.namespace, token,
         certificateAuthority: values.ca ? await readFile(expandPath(values.ca), 'utf8') : undefined });
-      console.log(values.json ? JSON.stringify(result) : `Contesto aggiunto: ${display(name)}. Attivalo con kcm use ${JSON.stringify(name)}.`);
+      const hint = direct ? '' : ` Attivalo con kcm use --folder standard -- ${shellQuote(name.trim(), defaultShell)}`;
+      console.log(values.json ? JSON.stringify(result) : `Contesto aggiunto: ${display(name)}.${hint}`);
       break;
     }
     case 'namespace': {
-      const current = values.context || (values.kubeconfig ? (await manager.snapshot()).current : (await workspace.snapshot()).currentId);
-      if (!current) throw new Error('Nessun contesto attivo. Specifica --context oppure usa kcm use.');
-      const state = values.kubeconfig ? await manager.namespace(current, required()) : await workspace.namespace(current, required(), values.folder, values.file);
-      console.log(values.json ? JSON.stringify(state) : `Namespace di ${display(current)}: ${display(argument!)}`);
+      const ns = required();
+      const current = values.context ? undefined : await snapshot();
+      const name = values.context || (current && activeContext(current)?.name);
+      if (!name) throw new Error('Nessun contesto attivo. Specifica --context oppure usa kcm use.');
+      const selector = current && isWorkspace(current) ? { id: current.currentId } : name;
+      const state = direct ? await direct.namespace(name, ns) : await workspace.namespace(selector, ns, values.folder, values.file);
+      console.log(values.json ? JSON.stringify(state) : `Namespace di ${display(name)}: ${display(ns)}`);
       break;
     }
     case 'env': {
       if (argument) throw new Error('Usa kcm env [--shell bash|zsh|fish|powershell].');
-      const state = values.kubeconfig ? await manager.snapshot() : await workspace.snapshot();
+      const state = await snapshot();
       const path = isWorkspace(state) ? state.activePath : state.path;
-      if (!state.current || !state.contexts.some(context => 'id' in context && 'currentId' in state ? context.id === state.currentId : context.name === state.current)) throw new Error('Nessun contesto attivo disponibile. Usa kcm use prima di kcm env.');
-      console.log(values.json ? JSON.stringify({ path }) : environmentCommand(path, values.shell || (process.platform === 'win32' ? 'powershell' : 'bash')));
+      if (!activeContext(state)) throw new Error('Nessun contesto attivo disponibile. Usa kcm use prima di kcm env.');
+      console.log(values.json ? JSON.stringify({ path }) : environmentCommand(path, values.shell || defaultShell));
       break;
     }
     default: throw new Error(`Comando sconosciuto: ${command}. Usa kcm --help.`);

@@ -1,8 +1,18 @@
 # KubeContext
 
-App desktop per macOS, Windows e Linux per gestire i contesti Kubernetes da finestra, barra di sistema e CLI. Interfaccia in italiano, Electron + React + TypeScript. Non richiede `kubectl` per leggere o modificare i kubeconfig e non contatta i cluster.
+App desktop per macOS, Windows e Linux per gestire i contesti Kubernetes da finestra, barra di sistema e CLI. KubeContext legge e modifica kubeconfig locali. Per operare sui cluster dalla shell servono `kubectl` o gli altri strumenti che usi abitualmente.
 
-## Avvio
+[Release e download](https://github.com/acquavlu-hue/kubeconfig-manager/releases) · [Guida alla pubblicazione](docs/pubblicazione.md) · [Licenze delle dipendenze](docs/licenze.md)
+
+## Installazione e avvio
+
+Le release pubblicate sono disponibili nella [pagina GitHub Releases](https://github.com/acquavlu-hue/kubeconfig-manager/releases), insieme alle note di versione e a `SHA256SUMS.txt`. La CLI si installa separatamente con `npm link` come indicato sotto.
+
+- **macOS.** Scegli `arm64` per Apple Silicon o `x64` per Intel. Apri il DMG o estrai lo ZIP e trascina `KubeContext.app` in Applicazioni.
+- **Windows x64.** Estrai lo ZIP e avvia `KubeContext.exe` dalla cartella estratta.
+- **Linux x64.** Estrai l’archivio `tar.gz` e avvia `kubecontext-manager` dalla cartella estratta. Il runtime richiede le librerie di sistema di Electron.
+
+### Da sorgente
 
 Richiede Node.js **22.12+** e npm. Consigliato Node.js 24 LTS.
 
@@ -28,6 +38,7 @@ npm start
 - Aggiunta da file YAML/JSON, testo incollato o creazione manuale con server, namespace, bearer token e CA PEM facoltativi.
 - Importazione senza sovrascrivere nomi in conflitto. Un prefisso rinomina insieme contesti, cluster e utenti. Gli elementi identici vengono ignorati.
 - Modifica del namespace e copia del comando CLI.
+- Tema **Sistema**, **Chiaro** o **Scuro** in **Preferenze → Aspetto**. La scelta viene salvata e il valore iniziale segue il sistema.
 - Shell isolata per il contesto scelto, dalla finestra e da `kcm shell`, con prompt dedicato e nessuno switch locale.
 - Menu tray con sottomenu per cliente, preferiti in cima, file di provenienza e selezione del contesto.
 - Scorciatoia globale `Cmd/Ctrl+Shift+K` per mostrare l’app; `Cmd/Ctrl+K` nella finestra per cercare. La scorciatoia globale dipende dal sistema operativo e dalla disponibilità della combinazione.
@@ -75,7 +86,7 @@ Per nomi che iniziano con `-`, usare il separatore: `kcm use -- '-nome'`.
 
 ## Cartelle clienti e tenant
 
-Nella sidebar selezionare **Collega cartella**, assegnare un nome cliente e scegliere una directory. L'opzione **Includi le sottocartelle** è attiva per impostazione predefinita. **Contesti** mostra tutte le sorgenti; **Standard** e ciascun cliente filtrano la lista. Ogni contesto mostra cliente e file di provenienza. Si possono rinominare i gruppi o scollegarli senza eliminare alcun file.
+Nella sidebar, sotto **Raccolte**, selezionare **Collega cartella**, assegnare un nome e scegliere una directory. L'opzione **Includi le sottocartelle** è attiva per impostazione predefinita. **Contesti** mostra tutte le sorgenti. **Standard** e ciascuna raccolta filtrano la lista. Ogni contesto mostra raccolta e file di provenienza. Si possono rinominare o scollegare le raccolte mantenendo i file sul filesystem.
 
 Esempio di organizzazione:
 
@@ -88,7 +99,7 @@ Esempio di organizzazione:
   config
 ```
 
-Non avviene alcun merge fra questi file. La scansione è di sola lettura. Lo switch modifica solo il `current-context` del kubeconfig selezionato; il cambio namespace modifica solo il relativo contesto in quel file. Entrambe le operazioni creano un backup. Certificati e comandi con percorsi relativi restano relativi al file originale.
+I kubeconfig delle raccolte restano separati. La scansione è di sola lettura e mostra il file Standard una volta sola, anche quando si trova dentro una directory collegata. Lo switch modifica il `current-context` del kubeconfig selezionato. Il cambio namespace modifica il relativo contesto in quel file. Le scritture creano un backup. Certificati e comandi con percorsi relativi restano relativi al file originale.
 
 I nomi di contesti, cluster e utenti possono ripetersi fra clienti o fra file dello stesso cliente. Le identità usate dall'app includono cartella, file e nome. Dalla CLI, disambiguare con `--folder` e, se occorre, `--file`:
 
@@ -133,7 +144,7 @@ kcm env --shell powershell | Invoke-Expression
 
 Eseguire nuovamente il comando di ambiente quando si cambia **file** dall'app o dalla tray. Se si cambia contesto nello stesso file, gli strumenti che usano quel file ne leggono il nuovo `current-context`. Per tornare ai contesti personali: `kcm use <nome> --folder standard`, poi aggiornare la shell con `kcm env`. In alternativa si può passare il file direttamente: `kubectl --kubeconfig <file> ...`.
 
-`kcm current --json` mostra il file e il gruppo attivi. `kcm env --json` restituisce solo il percorso; `kcm env` stampa il comando quotato e non esegue una shell. Non cambia il contesto né i file. Se il contesto attivo non è disponibile, termina con errore.
+`kcm current --json` mostra il file e il gruppo attivi. `kcm env --json` restituisce il percorso e `kcm env` stampa il comando da eseguire. Entrambi i comandi terminano con un codice diverso da zero se manca il contesto attivo. Se il percorso contiene il separatore di lista di `KUBECONFIG` (`:` su macOS/Linux, `;` su Windows), passalo direttamente a `kubectl --kubeconfig <file>`.
 
 ## Shell isolata
 
@@ -150,35 +161,35 @@ Il prompt mostra un indicatore come `[KCM: Acme / prod]`. La sessione contiene s
 
 Usa `exit` per chiudere la sessione: il kubeconfig e gli altri file temporanei vengono rimossi alla chiusura normale. In caso di arresto forzato possono restare nella directory temporanea del sistema. Sessioni aperte in parallelo hanno copie distinte. L’isolamento riguarda la configurazione locale; le operazioni sul cluster usano i permessi reali del contesto.
 
+Il prompt indica il contesto con cui KubeContext ha aperto la shell. Le preferenze `kuberc` restano attive, comprese le policy sui plugin di autenticazione. Se configurano un kubeconfig diverso per un comando, passa esplicitamente il file della sessione con `kubectl --kubeconfig "$KUBECONFIG" …` su Bash/zsh o `kubectl --kubeconfig "$env:KUBECONFIG" …` su PowerShell. [Preferenze kubectl](https://kubernetes.io/docs/reference/kubectl/kuberc/)
+
 Da CLI la shell parte nel terminale corrente, nella directory corrente. L’app apre Terminale su macOS, una finestra PowerShell su Windows o un terminale supportato su Linux (`x-terminal-emulator`, GNOME Terminal, Konsole, Xfce Terminal, xterm). Sono supportati Bash e zsh su macOS/Linux e PowerShell su Windows. La shell isolata usa un prompt proprio e non carica il profilo personale: alias e funzioni definiti lì non sono disponibili.
 
 ## Quale kubeconfig viene modificato
 
-Il file **Standard**, usato anche dagli import e dalla creazione manuale, è risolto inizialmente in questo ordine:
+Per individuare il file **Standard**, usato anche dagli import e dalla creazione manuale, KubeContext segue quest’ordine.
 
 1. `--kubeconfig <file>` per la singola invocazione CLI.
 2. Variabile `KCM_KUBECONFIG`.
-3. Variabile `KUBECONFIG`, se contiene un solo file.
-4. File scelto nelle preferenze o con `kcm path <file>`.
-5. `~/.kube/config`.
+3. File fissato scegliendolo nell’app, usando `kcm path <file>` o collegando la prima raccolta.
+4. Variabile `KUBECONFIG`, se contiene un solo file.
+5. Percorso salvato da una versione precedente senza raccolte, se presente, oppure `~/.kube/config`.
 
-Quando si collega la prima cartella, il percorso Standard viene fissato nelle preferenze. Da quel momento prevale su `KUBECONFIG`, anche dopo aver scollegato i clienti: esportare il file di un tenant nella shell non deve trasformarlo nel file Standard. `--kubeconfig` e `KCM_KUBECONFIG` continuano a prevalere. **Scegli un altro file** e `kcm path <file>` cambiano il file Standard e riportano la selezione dell'app su Standard.
+La prima raccolta fissa il percorso Standard in uso. L’impostazione vale anche dopo aver scollegato le raccolte. **Scegli un altro file** e `kcm path <file>` salvano un percorso condiviso e riportano la selezione a Standard. Se hai avviato l’app con `KCM_KUBECONFIG`, rimuovi la variabile e riaprila per scegliere un altro file dalla finestra.
 
 `--kubeconfig` su `list`, `use`, `namespace` e `current` mantiene la modalità diretta su quel solo file, senza cambiare la selezione condivisa dell'app. Senza tale opzione la CLI usa il workspace e distingue le cartelle. `kcm path` mostra il percorso Standard; `kcm env` mostra come attivare quello correntemente selezionato.
 
 Una lista di file in `KUBECONFIG` non viene appiattita o modificata implicitamente; prima di configurare le cartelle richiede una selezione esplicita del file Standard. Un'app aperta dal Finder o dal menu del sistema può non ereditare le variabili della shell.
 
-Le cartelle, il file attivo, i preferiti e il percorso Standard sono in `~/.config/kubecontext/settings.json` (o `$XDG_CONFIG_HOME`); su Windows in `%APPDATA%/kubecontext/settings.json`. `KCM_SETTINGS` permette di isolare le preferenze nei test. Le credenziali non vengono copiate nelle preferenze o restituite al renderer. Il file kubeconfig continua a contenere i suoi segreti secondo il formato Kubernetes.
+Raccolte, file attivo, preferiti, tema e percorso Standard sono in `~/.config/kubecontext/settings.json`, oppure in `$XDG_CONFIG_HOME/kubecontext/settings.json` se impostato. Su Windows sono in `%APPDATA%/kubecontext/settings.json`. `KCM_SETTINGS` permette di usare un file di preferenze separato, ad esempio nei test.
 
 Gli import **non attivano automaticamente** alcun contesto, neppure il primo. Selezionarlo esplicitamente dalla UI, dalla tray o con `kcm use`.
 
 Solo nel caso di un **import nel file Standard**, i riferimenti relativi a certificati, chiavi, token file e comandi exec vengono resi assoluti rispetto al file importato. I file referenziati non vengono copiati e devono restare disponibili. Il testo incollato deve avere credenziali incorporate e non può usare riferimenti a file. Collegare una cartella mantiene invece i file originali e i loro riferimenti senza spostarli.
 
-## Vault: fase successiva
+## Vault
 
-L’integrazione con il vault aziendale è **rinviata**. La schermata dedicata lo indica esplicitamente; nessun provider remoto, token Vault o autenticazione simulata è attivo.
-
-Il contratto `KubeconfigProvider` in `src/core/providers.ts` prevede `list()` e `fetch()` con cancellazione. Il futuro adapter gestirà l’autenticazione nel processo main e passerà kubeconfig autosufficienti allo stesso percorso di validazione/importazione. Restano da definire prodotto Vault, API, modalità SSO/autenticazione e struttura dei secret.
+L’integrazione con il vault aziendale è rinviata. Le raccolte di questa versione leggono kubeconfig dal filesystem.
 
 ## Integrità dei file
 
@@ -186,34 +197,19 @@ I backup sono accanto al kubeconfig: `config.backup-<timestamp>-<id>`. Sono copi
 
 Il lock `.kcm-lock` coordina più processi KubeContext e si riprende dopo un crash (scadenza 10 secondi). Un controllo prima del salvataggio rileva modifiche fatte da programmi esterni: strumenti come `kubectl` non rispettano questo lock, quindi resta possibile una gara nell’intervallo finale di scrittura. Evitare modifiche simultanee da altri strumenti. In caso di errore di parsing il file originale non viene riscritto.
 
-Per ripristinare un backup, uscire dall’app e copiare il backup sul file originale con i permessi appropriati. Sono mantenuti i campi kubeconfig sconosciuti; switch e cambio namespace preservano i commenti. Un import può riformattare le liste che estende.
+Per ripristinare un backup, uscire dall’app e copiare il backup sul file originale con i permessi appropriati. Gli import aggiungono le voci conservando commenti, campi sconosciuti e ancore già presenti. Se una modifica a un campo con ancora YAML cambierebbe anche altri valori, KubeContext interrompe l’operazione e chiede di espandere gli alias. Il limite di 10 MB si applica anche al file risultante da un import.
 
 ## Verifica e pacchetti
 
 ```sh
 npm test           # core e CLI: esclusivamente file temporanei
 npm run build     # controllo TypeScript e build di tutti i componenti
-npm run test:e2e  # avvia Electron: UI, CLI sync, tray e isolamento
+npm run licenses  # inventario npm e avvisi di distribuzione in dist/licenses/
+npm run test:e2e  # dopo la build, avvia Electron e verifica UI, CLI, tray e isolamento
 npm run package   # cartella app per il sistema corrente, in release/
-npm run dist      # installer per il sistema corrente
+npm run dist      # pacchetti scaricabili per il sistema corrente
 ```
 
-Lo smoke test crea screenshot in `artifacts/` e non accede al kubeconfig personale. La workflow GitHub Actions prepara DMG/ZIP per macOS, NSIS per Windows e AppImage per Linux sui rispettivi runner. I pacchetti di sviluppo non sono firmati né notarizzati; per la distribuzione pubblica configurare i certificati nelle pipeline. Windows e Linux richiedono verifica sui rispettivi sistemi.
+Lo smoke test usa un workspace temporaneo e crea screenshot in `artifacts/`. La pipeline GitHub Actions prepara una release in bozza quando viene inviato un tag `vX.Y.Z` coerente con `package.json`. Per firme, verifica dei binari e messa online del sito consulta la [guida alla pubblicazione](docs/pubblicazione.md).
 
-Un override limitato a `minimatch` 7–10 seleziona la versione corretta 11.0.1 o successiva negli strumenti di packaging, per [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249). Non modifica le vecchie API 3/5 usate da altri strumenti. L’audit npm della prima versione risulta senza vulnerabilità segnalate.
-
-Il renderer usa sandbox, isolamento del contesto, CSP e un bridge IPC con operazioni esplicite. Non riceve accesso Node.js e non carica contenuti remoti.
-
-## Struttura
-
-```text
-src/core/         workspace e cartelle, parsing, merge, file lock, backup, preferenze
-src/main/         Electron, tray, dialoghi e bridge IPC
-src/renderer/     interfaccia React
-src/shared/       tipi del bridge (solo metadata, mai token)
-src/cli.ts        comando kcm, usa lo stesso core
-tests/            test di integrità e CLI
-scripts/          build, icone, sviluppo e smoke test desktop
-```
-
-Riferimenti: [formato kubeconfig e contesti](https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/), [isolamento Electron](https://www.electronjs.org/docs/latest/tutorial/context-isolation), [sicurezza Electron](https://www.electronjs.org/docs/latest/tutorial/security).
+Per orientarti nel codice, consulta la [guida all’architettura](docs/architettura.md).

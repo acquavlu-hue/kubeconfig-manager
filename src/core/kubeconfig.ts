@@ -53,18 +53,21 @@ function parse(raw: string): { document: Document; config: Config } {
   }
   if (config['current-context'] == null) config['current-context'] = '';
   if (typeof config['current-context'] !== 'string') throw new Error('current-context deve essere una stringa.');
+  const clusterNames = new Set(config.clusters.map(entry => entry.name));
+  const userNames = new Set(config.users.map(entry => entry.name));
   for (const entry of config.contexts) {
     const context = body(entry, 'context');
-    if (!config.clusters.some(cluster => cluster.name === context.cluster)) throw new Error(`Cluster mancante per il contesto “${entry.name}”.`);
-    if (context.user && !config.users.some(user => user.name === context.user)) throw new Error(`Utente mancante per il contesto “${entry.name}”.`);
+    if (!clusterNames.has(text(context.cluster))) throw new Error(`Cluster mancante per il contesto “${entry.name}”.`);
+    if (context.user && !userNames.has(text(context.user))) throw new Error(`Utente mancante per il contesto “${entry.name}”.`);
   }
   return { document, config };
 }
 
 function summaries(config: Config): ContextInfo[] {
+  const clusters = new Map(config.clusters.map(entry => [entry.name, entry]));
   return config.contexts.map(entry => {
     const context = body(entry, 'context');
-    const cluster = config.clusters.find(item => item.name === context.cluster);
+    const cluster = clusters.get(text(context.cluster));
     return {
       name: entry.name, cluster: text(context.cluster), user: text(context.user),
       namespace: text(context.namespace) || 'default', server: cluster ? publicEndpoint(body(cluster, 'cluster').server) : '',
@@ -99,11 +102,14 @@ function resolveReferences(config: Config, sourceDirectory?: string): void {
 function prefixNames(config: Config, prefix: string): void {
   if (!prefix) return;
   if (!/^[a-zA-Z0-9_.-]+$/.test(prefix) || prefix.length > 80) throw new Error('Il prefisso può contenere lettere, numeri, punti, trattini e underscore (max 80).');
-  for (const key of ['clusters', 'users', 'contexts'] as const) for (const entry of config[key]) entry.name = `${prefix}/${entry.name}`;
+  for (const key of ['clusters', 'users', 'contexts'] as const) {
+    config[key] = config[key].map(entry => ({ ...entry, name: `${prefix}/${entry.name}` }));
+  }
   for (const entry of config.contexts) {
-    const context = body(entry, 'context');
+    const context = { ...body(entry, 'context') };
     context.cluster = `${prefix}/${context.cluster}`;
     if (context.user) context.user = `${prefix}/${context.user}`;
+    entry.context = context;
   }
 }
 
@@ -237,7 +243,7 @@ export class KubeconfigManager {
 
   async add(input: AddContextInput): Promise<ImportResult> {
     const name = input.name.trim();
-    if (!name || name.length > 200 || /[\x00-\x1f\x7f]/.test(name)) throw new Error('Inserisci un nome di contesto valido (max 200 caratteri).');
+    if (!name || name.length > 200 || /[\x00-\x1f\x7f-\x9f]/.test(name)) throw new Error('Inserisci un nome di contesto valido (max 200 caratteri).');
     let server: URL;
     try { server = new URL(input.server); } catch { throw new Error('Indirizzo API server non valido.'); }
     if (!['https:', 'http:'].includes(server.protocol) || !server.hostname || server.username || server.password || server.hash || server.search) throw new Error('Usa un URL HTTP/HTTPS senza credenziali, query o frammenti.');

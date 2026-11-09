@@ -46,7 +46,7 @@ export interface AddContextInput {
   certificateAuthority?: string;
 }
 export interface ImportResult { added: string[]; skipped: string[]; backup?: string }
-export interface Reply<T> { data?: T; error?: string }
+export type Reply<T> = { data: T } | { error: string };
 export type ThemePreference = 'system' | 'light' | 'dark';
 export interface DesktopAPI {
   getTheme(): Promise<Reply<ThemePreference>>;

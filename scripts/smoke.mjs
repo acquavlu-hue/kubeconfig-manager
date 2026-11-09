@@ -16,7 +16,8 @@ await writeFile(path, JSON.stringify({
   contexts: names.map((name, index) => ({ name, context: { cluster: `${name}-cluster`, user: 'platform-user', namespace: ['platform', 'payments', 'staging', 'default'][index] } })),
   'current-context': 'development-eu',
 }));
-const environment = { ...process.env, KCM_KUBECONFIG: path, KCM_SETTINGS: join(root, 'settings.json') };
+const environment = { ...process.env, KUBECONFIG: path, KCM_SETTINGS: join(root, 'settings.json') };
+delete environment.KCM_KUBECONFIG;
 const tenantDirectory = join(root, 'tenant-acme');
 await mkdir(join(tenantDirectory, 'eu'), { recursive: true });
 const tenantPath = join(tenantDirectory, 'eu', 'config.yaml');
@@ -35,6 +36,17 @@ const desktop = await electron.launch({
   ...(process.env.KCM_EXECUTABLE ? { executablePath: process.env.KCM_EXECUTABLE } : {}),
   args: [...(process.env.KCM_EXECUTABLE ? [] : ['.']), `--user-data-dir=${browserProfile}`], cwd: resolve('.'), env: environment, timeout: 30000,
 }).catch(async error => { await rm(root, { recursive: true, force: true }); throw error; });
+
+async function waitForTheme(source) {
+  await desktop.evaluate(async ({ nativeTheme }, expected) => {
+    const deadline = Date.now() + 5000;
+    while (nativeTheme.themeSource !== expected) {
+      if (Date.now() >= deadline) throw new Error(`Tema atteso: ${expected}. Tema effettivo: ${nativeTheme.themeSource}.`);
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+  }, source);
+}
+
 try {
   const page = await desktop.firstWindow();
   await page.emulateMedia({ colorScheme: null });
@@ -60,6 +72,12 @@ try {
   assert.equal(parse(await readFile(path, 'utf8'))['current-context'], 'staging-us');
 
   // Invalid pasted input gives a useful error and keeps the modal open.
+  await page.getByRole('button', { name: 'Aggiungi contesto', exact: true }).click();
+  await page.getByRole('dialog').waitFor();
+  await page.keyboard.press('Tab');
+  assert.equal(await page.getByRole('button', { name: 'Chiudi', exact: true }).evaluate(button => button === document.activeElement), true);
+  await page.keyboard.press('Escape');
+  await page.getByRole('dialog').waitFor({ state: 'hidden' });
   await page.getByRole('button', { name: 'Aggiungi contesto', exact: true }).click();
   await page.getByRole('tab', { name: 'Incolla YAML' }).click();
   await page.getByLabel('Contenuto kubeconfig').fill('apiVersion: [invalid');
@@ -176,6 +194,7 @@ try {
   const theme = page.getByLabel('Tema', { exact: true });
   assert.equal(await theme.inputValue(), 'system');
   await theme.selectOption('dark');
+  await waitForTheme('dark');
   await page.waitForFunction(() =>
     matchMedia('(prefers-color-scheme: dark)').matches &&
     getComputedStyle(document.documentElement).colorScheme === 'dark');
@@ -190,10 +209,20 @@ try {
 
   await page.getByRole('button', { name: 'Preferenze', exact: true }).click();
   await theme.selectOption('light');
+  await waitForTheme('light');
   await page.waitForFunction(() => matchMedia('(prefers-color-scheme: light)').matches);
   await theme.selectOption('system');
-  await page.waitForFunction(() => !document.querySelector('.theme-field select')?.disabled);
-  assert.equal(await desktop.evaluate(({ nativeTheme }) => nativeTheme.themeSource), 'system');
+  await waitForTheme('system');
+
+  // A CLI path change replaces the Standard file previously chosen in the desktop.
+  await desktop.evaluate(({ dialog }, file) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] });
+  }, tenantPath);
+  await page.getByRole('button', { name: 'Scegli un altro file', exact: true }).click();
+  await page.getByText(tenantPath, { exact: true }).waitFor();
+  execFileSync(process.execPath, ['dist/cli.mjs', 'path', path], { env: environment });
+  await page.getByText(path, { exact: true }).waitFor();
+
   assert.deepEqual(errors, []);
   console.log('Desktop smoke passed: theme preferences, existing flows, folder dialog, isolated shell, tenant switch, CLI sync, file separation, discovery, rename, disconnect, sandbox and tray.', native);
 } finally {

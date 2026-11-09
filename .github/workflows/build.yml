@@ -1,19 +1,20 @@
 name: Build desktop
 on:
   push:
+    branches: [main]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 permissions:
   contents: read
+
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+  check:
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -21,15 +22,100 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - name: Check public release prerequisites
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { existsSync, readFileSync } from 'node:fs';
+          const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
+          if (!/^\d+\.\d+\.\d+$/.test(manifest.version) || process.env.RELEASE_TAG !== `v${manifest.version}`) {
+            throw new Error('Il tag deve corrispondere alla versione stabile in package.json (es. v0.3.0).');
+          }
+          if (!manifest.license || manifest.license === 'UNLICENSED' || !existsSync('LICENSE') || !readFileSync('LICENSE', 'utf8').trim()) {
+            throw new Error('Scegli la licenza di KubeContext, dichiarala in package.json e aggiungi il file LICENSE.');
+          }
+          const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'));
+          if (lock.packages[''].license !== manifest.license) throw new Error('Aggiorna la licenza nel lockfile.');
+          NODE
+
+  package:
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-15, platform: mac, arch: arm64, formats: 'dmg zip' }
+          - { runner: macos-15-intel, platform: mac, arch: x64, formats: 'dmg zip' }
+          - { runner: windows-2025, platform: win, arch: x64, formats: zip }
+          - { runner: ubuntu-24.04, platform: linux, arch: x64, formats: tar.gz }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
       - name: Package for current platform
-        run: npx electron-builder --publish never
+        run: npm run dist -- --${{ matrix.arch }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Collect expected packages
+        shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          ARCH: ${{ matrix.arch }}
+          FORMATS: ${{ matrix.formats }}
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          for notice in LICENSE.electron.txt LICENSES.chromium.html THIRD-PARTY-NOTICES.txt DEPENDENCIES.json; do
+            test -n "$(find release -path "*/licenses/$notice" -size +0c -print -quit)"
+          done
+          mkdir release-assets
+          for format in $FORMATS; do
+            asset="release/KubeContext-$version-$PLATFORM-$ARCH.$format"
+            test -s "$asset"
+            cp "$asset" release-assets/
+          done
+          if [[ "$PLATFORM" == linux ]]; then
+            cp dist/licenses/{DEPENDENCIES.json,THIRD-PARTY-NOTICES.txt} release-assets/
+          fi
       - uses: actions/upload-artifact@v4
         with:
-          name: KubeContext-${{ runner.os }}
-          path: |
-            release/*.dmg
-            release/*.zip
-            release/*.exe
-            release/*.AppImage
+          name: KubeContext-${{ matrix.platform }}-${{ matrix.arch }}
+          path: release-assets/
+          if-no-files-found: error
+          compression-level: 0
+
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: KubeContext-*
+          path: release-assets
+          merge-multiple: true
+      - name: Create draft release with checksums
+        shell: bash
+        working-directory: release-assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          sha256sum -- KubeContext-* DEPENDENCIES.json THIRD-PARTY-NOTICES.txt > SHA256SUMS.txt
+          gh release create "$RELEASE_TAG" --verify-tag --draft --generate-notes \
+            --title "KubeContext $RELEASE_TAG" \
+            KubeContext-* DEPENDENCIES.json THIRD-PARTY-NOTICES.txt SHA256SUMS.txt

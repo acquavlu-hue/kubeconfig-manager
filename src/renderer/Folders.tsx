@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, FolderOpen, LoaderCircle, Pencil, Unplug, X } from 'lucide-react';
 import type { FolderInfo } from '../shared/types';
+import { Modal } from './Modal';
 
 export function FolderHeader({ folder, onReveal, onRename, onRemove }: {
   folder: FolderInfo;
@@ -23,7 +24,7 @@ export function FolderHeader({ folder, onReveal, onRename, onRemove }: {
         <button className="icon-button" type="button" aria-label="Annulla rinomina" onClick={() => { setName(folder.name); setEditing(false); }}><X size={16} /></button>
       </form> : <strong>{folder.kind === 'standard' ? 'Kubeconfig standard' : folder.name}</strong>}
       <code title={folder.path}>{folder.path}</code>
-      <small>{folder.fileCount} {folder.fileCount === 1 ? 'file' : 'file'} · {folder.contextCount} contesti · {folder.kind === 'filesystem' ? folder.recursive ? 'Include sottocartelle' : 'Solo questa cartella' : 'Configurazione personale'}</small>
+      <small>{folder.fileCount} file · {folder.contextCount} contesti · {folder.kind === 'filesystem' ? folder.recursive ? 'Include sottocartelle' : 'Solo questa cartella' : 'Configurazione personale'}</small>
       {error && <span className="folder-inline-error" role="alert">{error}</span>}
     </div>
     {folder.kind === 'filesystem' && <div className="folder-header-actions">
@@ -46,21 +47,6 @@ export function FolderModal({ onClose, onPick, onAdd }: {
   const [recursive, setRecursive] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement;
-    ref.current?.focus();
-    const key = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { if (!busy) onClose(); return; }
-      if (event.key !== 'Tab') return;
-      const elements = [...ref.current!.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled])')];
-      const first = elements[0], last = elements.at(-1);
-      if (event.shiftKey && (document.activeElement === first || document.activeElement === ref.current)) { event.preventDefault(); last?.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-    };
-    document.addEventListener('keydown', key);
-    return () => { document.removeEventListener('keydown', key); previous?.focus(); };
-  }, [busy, onClose]);
   const pick = async () => {
     try {
       const value = await onPick();
@@ -70,8 +56,7 @@ export function FolderModal({ onClose, onPick, onAdd }: {
       setError('');
     } catch (error) { setError(error instanceof Error ? error.message : String(error)); }
   };
-  return <div className="modal-backdrop" onMouseDown={event => { if (event.currentTarget === event.target && !busy) onClose(); }}>
-    <div className="modal folder-modal" ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="folder-title">
+  return <Modal titleId="folder-title" className="folder-modal" busy={busy} onClose={onClose}>
       <div className="modal-heading"><div className="modal-icon"><FolderOpen size={23} /></div><button className="icon-button" aria-label="Chiudi cartella" disabled={busy} onClick={onClose}><X size={19} /></button></div>
       <h2 id="folder-title">Uno spazio per ogni cliente.</h2>
       <p className="modal-subtitle">Collega una cartella di kubeconfig senza unirli a quelli standard.</p>
@@ -83,6 +68,5 @@ export function FolderModal({ onClose, onPick, onAdd }: {
         {error && <div className="modal-error" role="alert">{error}</div>}
         <div className="modal-footer"><button type="button" className="button secondary" disabled={busy} onClick={onClose}>Annulla</button><button className="button primary" type="submit" disabled={busy || !path}>{busy ? <LoaderCircle size={16} className="spin" /> : <FolderOpen size={16} />}{busy ? 'Scansione…' : 'Collega cartella'}</button></div>
       </form>
-    </div>
-  </div>;
+  </Modal>;
 }

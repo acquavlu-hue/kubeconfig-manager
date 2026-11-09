@@ -2,10 +2,10 @@ import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { stringify, parse } from 'yaml';
 import { ContextWorkspace } from '../src/core/workspace';
-import { configPath, readSettings } from '../src/core/settings';
+import { configPath, readSettings, saveConfigPath, updateSettings } from '../src/core/settings';
 import { environmentCommand } from '../src/core/shell';
 
 let root: string;
@@ -167,7 +167,59 @@ test('recursive discovery does not follow symbolic links', { skip: process.platf
 
 test('environment commands quote paths for bash, fish and PowerShell', () => {
   assert.equal(environmentCommand('/tmp/client config', 'bash'), "export KUBECONFIG='/tmp/client config'");
-  assert.equal(environmentCommand("C:\\Client's\\config", 'powershell'), "$env:KUBECONFIG = 'C:\\Client''s\\config'");
+  assert.equal(environmentCommand("client's/config", 'powershell'), "$env:KUBECONFIG = 'client''s/config'");
+  assert.equal(environmentCommand('client’s/config', 'powershell'), "$env:KUBECONFIG = 'client’’s/config'");
   assert.ok(environmentCommand("/tmp/client's/config", 'fish').includes("client\\'s"));
   assert.throws(() => environmentCommand('/tmp/config', 'invalid'), /Shell supportate/);
+  assert.throws(() => environmentCommand(`/tmp/client${delimiter}config`, 'bash'), /separatore di KUBECONFIG/);
+});
+
+test('Standard is only shown once when it lies in a linked directory', async () => {
+  const { directory, standard, workspace } = await setup('standard-in-folder');
+  await writeFile(join(directory, 'tenant-config'), config(['client'], 'client'));
+  const folder = await workspace.addFolder('Cliente', directory);
+  const state = await workspace.snapshot();
+  assert.deepEqual(state.contexts.filter(context => context.filePath === standard).map(context => context.folderId), ['standard']);
+  assert.equal(state.folders.find(item => item.id === folder.id)?.contextCount, 1);
+});
+
+test('settings keep an explicit Standard and pin the effective path for legacy settings', async () => {
+  const { directory, standard, workspace } = await setup('pin');
+  const fallback = join(directory, 'from-environment');
+  const tenant = join(directory, 'tenant');
+  await mkdir(tenant);
+  const previous = process.env.KUBECONFIG;
+  delete process.env.KCM_KUBECONFIG;
+  process.env.KUBECONFIG = fallback;
+  try {
+    await updateSettings(settings => { settings.kubeconfig = standard; });
+    assert.equal(await configPath(), fallback);
+    await workspace.addFolder('Cliente', tenant);
+    assert.equal((await readSettings()).kubeconfig, fallback);
+    await saveConfigPath(standard);
+    assert.equal(await configPath(), standard);
+    process.env.KCM_KUBECONFIG = fallback;
+    assert.equal(await configPath(), fallback);
+  } finally {
+    if (previous === undefined) delete process.env.KUBECONFIG;
+    else process.env.KUBECONFIG = previous;
+  }
+});
+
+test('a switch after concurrent removal leaves the former collection file untouched', async () => {
+  const { directory, workspace } = await setup('switch-after-remove');
+  const tenant = join(directory, 'tenant');
+  await mkdir(tenant);
+  const source = join(tenant, 'config');
+  const original = config();
+  await writeFile(source, original);
+  const folder = await workspace.addFolder('Cliente', tenant);
+  const find = workspace.find.bind(workspace);
+  workspace.find = async (...args) => {
+    const context = await find(...args);
+    await workspace.removeFolder(folder.id);
+    return context;
+  };
+  await assert.rejects(workspace.use('prod', folder.id), /scollegata/);
+  assert.equal(await readFile(source, 'utf8'), original);
 });

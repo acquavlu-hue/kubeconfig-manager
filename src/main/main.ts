@@ -5,6 +5,7 @@ import { KubeconfigManager } from '../core/kubeconfig';
 import { configPath, expandPath, readSettings, saveConfigPath, updateSettings } from '../core/settings';
 import { ContextWorkspace } from '../core/workspace';
 import { openIsolatedTerminal, prepareDesktopSession } from '../core/isolated-shell';
+import { MAX_FILE_BYTES } from '../core/files';
 import type { AddContextInput, Reply, ThemePreference } from '../shared/types';
 
 let window: BrowserWindow | null = null;
@@ -29,7 +30,7 @@ function openWindow(): void {
   window.show(); window.focus();
 }
 function openAdd(): void { openWindow(); window?.webContents.send('kcm:add-requested'); }
-function handle<T>(channel: string, callback: (...args: any[]) => Promise<T>): void {
+function handle<T>(channel: string, callback: (...args: unknown[]) => Promise<T>): void {
   ipcMain.handle(`kcm:${channel}`, async (event: IpcMainInvokeEvent, ...args: unknown[]): Promise<Reply<T>> => {
     if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) return { error: 'Richiesta non autorizzata.' };
     try { return { data: await callback(...args) }; }
@@ -56,10 +57,9 @@ async function refresh(): Promise<void> {
       { type: 'separator' },
       ...state.folders.map(folder => ({ label: `${folder.name} (${folder.contextCount})${folder.issues.length ? ' · attenzione' : ''}`, submenu: [
         ...(folder.issues.length ? [{ label: `${folder.issues.length} problemi di lettura · apri l’app`, click: openWindow }] : []),
-        ...sorted.filter(context => context.folderId === folder.id).map(context => ({ label: `${state.favorites.includes(context.id) ? '★ ' : ''}${context.name}  ·  ${context.namespace}${folder.kind === 'filesystem' ? `  ·  ${context.relativePath}` : ''}`,
-        type: 'checkbox' as const, checked: context.id === state.currentId,
+        ...sorted.filter(context => context.folderId === folder.id).map(context => ({ label: `${context.id === state.currentId ? '● ' : ''}${state.favorites.includes(context.id) ? '★ ' : ''}${context.name}  ·  ${context.namespace}${folder.kind === 'filesystem' ? `  ·  ${context.relativePath}` : ''}`,
         click: async () => {
-          try { await workspace.use(context.id); await refresh(); }
+          try { await workspace.use({ id: context.id }); await refresh(); }
           catch (error) { dialog.showErrorBox('Cambio contesto non riuscito', error instanceof Error ? error.message : String(error)); }
         } })),
         ...(folder.contextCount === 0 ? [{ label: 'Nessun contesto disponibile', enabled: false }] : []),
@@ -92,25 +92,26 @@ function registerHandlers(): void {
   });
   handle('snapshot', async () => workspace.snapshot());
   handle('open-shell', async id => {
-    const context = await workspace.find(string(id, 10000));
+    const context = await workspace.find({ id: string(id, 10000) });
     const session = await prepareDesktopSession(context);
     await openIsolatedTerminal(session);
     return { label: session.label, shell: session.shell };
   });
-  handle('use', async id => { const state = await workspace.use(string(id, 10000)); await refresh(); return state; });
+  handle('use', async id => { const state = await workspace.use({ id: string(id, 10000) }); await refresh(); return state; });
   handle('favorite', async id => { const state = await workspace.favorite(string(id, 10000)); await refresh(); return state; });
-  handle('namespace', async (id, namespace) => { const state = await workspace.namespace(string(id, 10000), string(namespace, 63)); await refresh(); return state; });
+  handle('namespace', async (id, namespace) => { const state = await workspace.namespace({ id: string(id, 10000) }, string(namespace, 63)); await refresh(); return state; });
   handle('import-file', async prefix => {
     const safePrefix = string(prefix, 80);
     const result = await dialog.showOpenDialog(window!, { title: 'Importa kubeconfig', properties: ['openFile'], filters: [{ name: 'Kubeconfig', extensions: ['yaml', 'yml', 'json', '*'] }] });
     if (result.canceled || !result.filePaths[0]) return null;
     const imported = await (await manager()).importFile(result.filePaths[0], safePrefix); await refresh(); return imported;
   });
-  handle('import-text', async (text, prefix) => { const result = await (await manager()).importText(string(text, 10 * 1024 * 1024), string(prefix, 80)); await refresh(); return result; });
+  handle('import-text', async (text, prefix) => { const result = await (await manager()).importText(string(text, MAX_FILE_BYTES), string(prefix, 80)); await refresh(); return result; });
   handle('add', async input => {
     if (!input || typeof input !== 'object') throw new Error('Contesto non valido.');
-    const safe: AddContextInput = { name: string(input.name, 200), server: string(input.server, 2048) };
-    for (const field of ['namespace', 'token', 'certificateAuthority'] as const) if (input[field] !== undefined) safe[field] = string(input[field], field === 'namespace' ? 63 : 1024 * 1024);
+    const fields = input as Record<string, unknown>;
+    const safe: AddContextInput = { name: string(fields.name, 200), server: string(fields.server, 2048) };
+    for (const field of ['namespace', 'token', 'certificateAuthority'] as const) if (fields[field] !== undefined) safe[field] = string(fields[field], field === 'namespace' ? 63 : 1024 * 1024);
     const result = await (await manager()).add(safe); await refresh(); return result;
   });
   handle('choose-config', async () => {

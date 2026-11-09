@@ -14,14 +14,15 @@
   "scripts": {
     "postinstall": "install-electron",
     "dev": "node scripts/dev.mjs",
-    "build": "tsc --noEmit && node scripts/build.mjs && vite build",
+    "build": "tsc --noEmit && node scripts/build.mjs && vite build && npm run licenses",
+    "licenses": "node scripts/licenses.mjs",
     "start": "electron .",
     "cli": "node dist/cli.mjs",
     "test": "node --import tsx --test tests/*.test.ts",
     "test:e2e": "node scripts/smoke.mjs",
     "check": "tsc --noEmit",
     "package": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder --publish never"
   },
   "build": {
     "appId": "dev.kubecontext.manager",
@@ -31,8 +32,13 @@
     },
     "files": [
       "dist/**/*",
+      "!dist/licenses/**",
       "package.json"
     ],
+    "extraResources": [
+      { "from": "dist/licenses", "to": "licenses" }
+    ],
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "asar": true,
     "icon": "dist/icon.png",
     "mac": {
@@ -44,12 +50,12 @@
     },
     "win": {
       "target": [
-        "nsis"
+        "zip"
       ]
     },
     "linux": {
       "target": [
-        "AppImage"
+        "tar.gz"
       ],
       "category": "Development"
     }

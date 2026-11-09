@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="KubeContext organizza i tuoi kubeconfig e gestisce i contesti Kubernetes da desktop, tray e CLI.">
+    <meta name="theme-color" content="#f5f5ed">
+    <link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="styles.css">
+    <title>KubeContext · Gestore di contesti Kubernetes</title>
+  </head>
+  <body>
+    <a class="skip" href="#main">Salta al contenuto</a>
+    <header class="site-header wrap">
+      <a class="brand" href="./"><img src="assets/mark.svg" width="34" height="34" alt="">KubeContext</a>
+      <nav aria-label="Navigazione principale">
+        <a href="#workspace">Workspace</a>
+        <a href="#download">Download</a>
+        <a href="https://github.com/acquavlu-hue/kubeconfig-manager">GitHub ↗</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero wrap" aria-labelledby="headline">
+        <div class="hero-copy">
+          <p class="eyebrow"><span></span> Desktop, tray e CLI</p>
+          <h1 id="headline">I tuoi contesti<br>Kubernetes.</h1>
+          <p class="lead">Organizza i kubeconfig per cliente, cambia contesto dalla tray o apri una shell dedicata con un kubeconfig temporaneo.</p>
+          <div class="actions">
+            <a class="button primary" href="#download">Scarica KubeContext <span aria-hidden="true">↓</span></a>
+            <a class="button secondary" href="https://github.com/acquavlu-hue/kubeconfig-manager#installazione-e-avvio">Guida d’uso ↗</a>
+          </div>
+          <p class="platforms">macOS · Windows · Linux</p>
+        </div>
+        <figure class="preview">
+          <div class="window-frame">
+            <div class="window-bar"><span aria-hidden="true"><i></i><i></i><i></i></span><span>KubeContext / Workspace locale</span></div>
+            <img src="assets/kubecontext-desktop.webp" width="2480" height="1640" alt="KubeContext in tema scuro, con il contesto staging-us attivo, l’elenco dei contesti e il pulsante Apri shell isolata">
+          </div>
+          <figcaption>Anteprima dell’app con kubeconfig di esempio</figcaption>
+        </figure>
+      </section>
+
+      <section id="workspace" class="workspace-section">
+        <div class="wrap workflow">
+          <div>
+            <p class="eyebrow">01 / Raccolte</p>
+            <h2>Un workspace, file separati.</h2>
+            <p>Collega le directory dei clienti e ritrova i contesti insieme a quelli personali. KubeContext mostra il file di origine e crea un backup prima di salvarvi una modifica.</p>
+            <div class="sources" aria-label="Esempio di raccolte">
+              <div><strong>Standard</strong><code>~/.kube/config</code></div>
+              <div><strong>Acme</strong><code>~/clienti/acme/</code></div>
+              <div><strong>Lab</strong><code>~/lab/kubeconfigs/</code></div>
+            </div>
+          </div>
+          <div>
+            <p class="eyebrow">02 / Shell isolata</p>
+            <h2>Apri il contesto in un terminale.</h2>
+            <p>Lancia la shell dall’app o dalla CLI. Il prompt mostra raccolta e contesto, mentre <code>KUBECONFIG</code> punta a una copia privata della sessione.</p>
+            <div class="terminal" aria-label="Esempio di shell isolata"><p><span>$</span> kcm shell prod --folder Acme</p><p><span>[KCM: Acme / prod]</span> ~ $</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="wrap downloads" id="download" aria-labelledby="download-title">
+        <div>
+          <p class="eyebrow">Download</p>
+          <h2 id="download-title">KubeContext per il tuo desktop.</h2>
+          <p>Su GitHub trovi i pacchetti, le note di versione e i checksum SHA-256 delle release pubblicate.</p>
+          <a class="button primary" href="https://github.com/acquavlu-hue/kubeconfig-manager/releases">Vedi le release su GitHub ↗</a>
+        </div>
+        <dl class="platform-list">
+          <div><dt>macOS</dt><dd>DMG e ZIP · Apple Silicon e Intel</dd></div>
+          <div><dt>Windows</dt><dd>ZIP portatile · x64</dd></div>
+          <div><dt>Linux</dt><dd>Archivio tar.gz · x64</dd></div>
+        </dl>
+      </section>
+    </main>
+
+    <footer class="wrap site-footer">
+      <span>KubeContext</span>
+      <a href="https://github.com/acquavlu-hue/kubeconfig-manager/blob/main/docs/licenze.md">Licenze di terze parti ↗</a>
+    </footer>
+  </body>
+</html>

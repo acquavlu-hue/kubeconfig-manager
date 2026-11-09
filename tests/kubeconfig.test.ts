@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parse, stringify } from 'yaml';
 import { KubeconfigManager } from '../src/core/kubeconfig';
+import { MAX_FILE_BYTES } from '../src/core/files';
 
 let root: string;
 before(async () => { root = await mkdtemp(join(tmpdir(), 'kcm-tests-')); process.env.KCM_SETTINGS = join(root, 'settings.json'); });
@@ -145,4 +146,58 @@ test('writes through a symlink without replacing it', { skip: process.platform =
   await new KubeconfigManager(link).namespace('dev', 'linked');
   assert.equal((await lstat(link)).isSymbolicLink(), true);
   assert.equal((await instance.snapshot()).contexts[0].namespace, 'linked');
+});
+
+const aliases = `apiVersion: v1
+kind: Config
+clusters:
+  - name: shared
+    cluster: &server
+      server: https://shared.example.com # Keep this comment
+      certificate-authority: ''
+users: []
+contexts:
+  - name: one
+    context: &common { cluster: shared, namespace: default }
+  - name: two
+    context: *common
+extensions:
+  - name: custom
+    extension: *server
+`;
+
+test('imports preserve destination anchors and prefix each source context once', async () => {
+  const instance = await seed('import-with-aliases');
+  await writeFile(instance.path, aliases);
+  await instance.importText(aliases, 'tenant');
+  const updated = await readFile(instance.path, 'utf8');
+  const data = parse(updated);
+  assert.match(updated, /# Keep this comment/);
+  assert.equal(data.extensions[0].extension.server, 'https://shared.example.com');
+  assert.deepEqual(data.contexts.map((entry: { context: { cluster: string } }) => entry.context.cluster), ['shared', 'shared', 'tenant/shared', 'tenant/shared']);
+  assert.equal(data.clusters[1].cluster['certificate-authority'], '');
+  assert.equal((await instance.snapshot()).contexts.length, 4);
+  assert.equal(parse(await instance.isolatedConfig('two')).clusters[0].cluster['certificate-authority'], '');
+});
+
+test('namespace edits detach an alias and leave a shared anchor intact', async () => {
+  const instance = await seed('namespace-with-aliases');
+  await writeFile(instance.path, aliases);
+  await assert.rejects(instance.namespace('one', 'newns'), /ancora YAML condivisa/);
+  assert.equal(await readFile(instance.path, 'utf8'), aliases);
+  await instance.namespace('two', 'other');
+  assert.deepEqual((await instance.snapshot()).contexts.map(context => context.namespace), ['default', 'other']);
+  await instance.namespace('one', 'newns');
+  assert.deepEqual((await instance.snapshot()).contexts.map(context => context.namespace), ['newns', 'other']);
+});
+
+test('rejects a merge exceeding the read limit before creating a backup', async () => {
+  const destination = fixture('original');
+  const incoming = fixture('incoming');
+  for (const config of [destination, incoming]) config.users[0].user.token = 'x'.repeat(MAX_FILE_BYTES / 2);
+  const instance = await seed('merge-limit', destination);
+  const original = await readFile(instance.path, 'utf8');
+  await assert.rejects(instance.importText(stringify(incoming)), /limite di 10 MB/);
+  assert.deepEqual(await readdir(join(root, 'merge-limit')), ['config']);
+  assert.ok(original === await readFile(instance.path, 'utf8'));
 });

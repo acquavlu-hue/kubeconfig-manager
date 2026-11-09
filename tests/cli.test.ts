@@ -35,6 +35,28 @@ test('CLI errors use nonzero exit codes and --kubeconfig overrides environment',
   assert.equal(cli(['path', '--kubeconfig', join(root, 'explicit')]).stdout.trim(), join(root, 'explicit'));
   assert.equal(cli(['list'], undefined, { KCM_KUBECONFIG: '', KUBECONFIG: `first${delimiter}second` }).status, 1);
 });
+
+test('CLI current fails for a context removed from the selected file', async () => {
+  const path = join(root, 'stale-current');
+  await writeFile(path, 'apiVersion: v1\nkind: Config\ncurrent-context: removed\n');
+  const current = cli(['current', '--kubeconfig', path, '--json']);
+  assert.equal(current.status, 1);
+  assert.deepEqual(JSON.parse(current.stdout), { current: '', path });
+  const shared = cli(['current', '--json'], undefined, { KCM_KUBECONFIG: path });
+  assert.equal(shared.status, 1);
+  assert.equal(JSON.parse(shared.stdout).current, '');
+});
+
+test('CLI shell rejects a temporary root that kubectl would split into several files', { skip: process.platform === 'win32' }, async () => {
+  const temporary = join(root, `wrong${delimiter}temporary`);
+  const path = join(root, 'shell-config');
+  await mkdir(temporary);
+  const added = cli(['add', 'isolated', '--server', 'https://example.com', '--kubeconfig', path]);
+  assert.equal(added.status, 0, added.stderr);
+  const result = cli(['shell', 'isolated', '--kubeconfig', path, '--shell', 'bash'], 'exit\n', { TMPDIR: temporary });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /separatore di KUBECONFIG/);
+});
 test('CLI imports and completion commands work', async () => {
   await writeFile(join(root, 'source'), 'apiVersion: v1\nkind: Config\nclusters:\n- name: c\n  cluster:\n    server: https://c.example.com\nusers: []\ncontexts:\n- name: c\n  context:\n    cluster: c\n');
   const imported = cli(['import', join(root, 'source'), '--prefix', 'team', '--json']);

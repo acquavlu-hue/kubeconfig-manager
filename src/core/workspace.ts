@@ -6,8 +6,15 @@ import { expandPath, readSettings, resolveConfigPath, toggleFavorite, updateSett
 import type { ContextFolder, FolderInfo, WorkspaceContext, WorkspaceSnapshot } from '../shared/types';
 
 export const STANDARD_FOLDER = 'standard';
+type ContextSelector = string | { id: string };
+
 export function contextId(folderId: string, path: string, name: string): string {
   return JSON.stringify([folderId, resolve(path), name]);
+}
+
+export function selectFolder(folders: FolderInfo[], selector: string): FolderInfo | undefined {
+  return folders.find(folder => folder.id === selector)
+    ?? folders.find(folder => folder.name.toLowerCase() === selector.toLowerCase());
 }
 function validName(value: string): string {
   const name = value.trim();
@@ -38,7 +45,9 @@ export class ContextWorkspace {
       const existing = settings.folders ?? [];
       uniqueName(existing, name);
       if (existing.some(item => item.path === path)) throw new Error('Questa cartella è già collegata.');
-      settings.kubeconfig ??= resolveConfigPath(settings, this.explicitStandardPath);
+      if (!settings.kubeconfig || (!settings.folders && !settings.standardPinned)) {
+        settings.kubeconfig = resolveConfigPath(settings, this.explicitStandardPath);
+      }
       settings.folders = [...existing, folder];
     });
     return folder;
@@ -73,7 +82,10 @@ export class ContextWorkspace {
     const folders: FolderInfo[] = [];
     const read = async (path: string, folder: FolderInfo): Promise<void> => {
       try {
-        if (folder.kind === 'filesystem' && await realpath(path) === canonicalStandard) return;
+        if (folder.kind === 'filesystem') {
+          const canonical = await realpath(path);
+          if (canonical !== path || canonical === canonicalStandard) return;
+        }
         const snapshot = await new KubeconfigManager(path).snapshot(settings);
         if (folder.kind === 'filesystem' && !snapshot.exists) throw new Error('Il file non è più disponibile.');
         fileStates.set(contextId(folder.id, path, ''), { current: snapshot.current, exists: snapshot.exists });
@@ -124,12 +136,12 @@ export class ContextWorkspace {
       contexts, folders, favorites, current, currentId, activePath: active.path, activeFolderId: active.folderId };
   }
 
-  async find(selector: string, folderSelector?: string, file?: string): Promise<WorkspaceContext> {
+  async find(selector: ContextSelector, folderSelector?: string, file?: string): Promise<WorkspaceContext> {
     const state = await this.snapshot();
-    const exact = state.contexts.find(context => context.id === selector);
-    let candidates = exact ? [exact] : state.contexts.filter(context => context.name === selector);
+    const value = typeof selector === 'string' ? selector : selector.id;
+    let candidates = state.contexts.filter(context => context.id === value || (typeof selector === 'string' && context.name === value));
     if (folderSelector) {
-      const folder = state.folders.find(item => item.id === folderSelector || item.name.toLowerCase() === folderSelector.toLowerCase());
+      const folder = selectFolder(state.folders, folderSelector);
       if (!folder) throw new Error(`Cartella non trovata: ${folderSelector}`);
       candidates = candidates.filter(context => context.folderId === folder.id);
     }
@@ -138,19 +150,28 @@ export class ContextWorkspace {
       const paths = await Promise.all(candidates.map(context => realpath(context.filePath).catch(() => resolve(context.filePath))));
       candidates = candidates.filter((_, index) => paths[index] === requested);
     }
-    if (!candidates.length) throw new Error(`Contesto non trovato: ${selector}`);
-    if (candidates.length > 1) throw new Error(`Contesto ambiguo: ${selector}. Specifica --folder e, se necessario, --file.`);
+    if (typeof selector === 'string' && candidates.some(context => context.name === value)) {
+      candidates = candidates.filter(context => context.name === value);
+    }
+    if (!candidates.length) throw new Error(`Contesto non trovato: ${value}`);
+    if (candidates.length > 1) throw new Error(`Contesto ambiguo: ${value}. Specifica --folder e, se necessario, --file.`);
     return candidates[0];
   }
 
-  async use(selector: string, folder?: string, file?: string): Promise<WorkspaceSnapshot> {
+  async use(selector: ContextSelector, folder?: string, file?: string): Promise<WorkspaceSnapshot> {
     const context = await this.find(selector, folder, file);
     await updateSettings(async settings => {
       if (context.folderId !== STANDARD_FOLDER && !settings.folders?.some(item => item.id === context.folderId)) {
         throw new Error('La cartella è stata scollegata.');
       }
-      if (context.folderId === STANDARD_FOLDER && context.filePath !== resolveConfigPath(settings, this.explicitStandardPath)) {
-        throw new Error('Il kubeconfig standard è cambiato. Riprova.');
+      const standard = resolveConfigPath(settings, this.explicitStandardPath);
+      if (context.folderId === STANDARD_FOLDER) {
+        if (context.filePath !== standard) throw new Error('Il kubeconfig standard è cambiato. Riprova.');
+      } else {
+        const source = await realpath(context.filePath);
+        if (source !== context.filePath || source === await realpath(standard).catch(() => standard)) {
+          throw new Error('La sorgente del contesto è cambiata. Aggiorna la raccolta e riprova.');
+        }
       }
       await new KubeconfigManager(context.filePath).use(context.name, settings);
       if (context.folderId === STANDARD_FOLDER) delete settings.activeFile;
@@ -159,7 +180,7 @@ export class ContextWorkspace {
     return this.snapshot();
   }
 
-  async namespace(selector: string, namespace: string, folder?: string, file?: string): Promise<WorkspaceSnapshot> {
+  async namespace(selector: ContextSelector, namespace: string, folder?: string, file?: string): Promise<WorkspaceSnapshot> {
     const context = await this.find(selector, folder, file);
     await stat(context.filePath);
     await new KubeconfigManager(context.filePath).namespace(context.name, namespace);
@@ -167,7 +188,7 @@ export class ContextWorkspace {
   }
 
   async favorite(id: string): Promise<WorkspaceSnapshot> {
-    const context = await this.find(id);
+    const context = await this.find({ id });
     await toggleFavorite(context.filePath, context.name);
     return this.snapshot();
   }
