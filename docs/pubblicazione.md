@@ -4,7 +4,7 @@ Il repository configurato è `acquavlu-hue/kubeconfig-manager`. Il codice e il s
 
 ## Prima del push
 
-1. Scegli la licenza del codice di KubeContext. Aggiungi il testo in `LICENSE`, dichiara lo stesso identificatore SPDX nel campo `license` di `package.json` e aggiorna il lockfile con `npm install --package-lock-only --ignore-scripts`. Le dipendenze mantengono le proprie licenze.
+1. Verifica che `LICENSE`, `package.json` e `package-lock.json` riportino la licenza MIT di KubeContext. Le dipendenze mantengono le proprie licenze.
 2. Rivedi i file da committare e la cronologia che sarà pubblica. Controlla anche gli eventuali artifact e log delle precedenti esecuzioni di Actions. Il sito usa uno screenshot prodotto dallo smoke test con kubeconfig di esempio. [Effetti del cambio di visibilità](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/managing-repository-settings/setting-repository-visibility#making-a-repository-public)
 3. Esegui `npm ci`, `npm test` e `npm run build`. Rivedi lo staging con `git diff --cached`, crea il commit e invia `main` con `git push -u origin main`.
 4. In **Settings → General → Danger Zone → Change repository visibility** seleziona **Public** con un account che amministra il repository. In **Settings → Pages** imposta **Build and deployment → Source → GitHub Actions**. [Configurazione di GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
@@ -29,11 +29,11 @@ Il tag deve coincidere con `package.json`. GitHub Actions esegue test, build e c
 | macOS Apple Silicon e Intel | `KubeContext-<versione>-mac-arm64.dmg`, `KubeContext-<versione>-mac-x64.dmg` e i rispettivi `.zip` |
 | Windows x64 | `KubeContext-<versione>-win-x64.zip` |
 | Linux x64 | `KubeContext-<versione>-linux-x64.tar.gz` |
-| Tutti | `SHA256SUMS.txt`, `THIRD-PARTY-NOTICES.txt`, `DEPENDENCIES.json` |
+| Tutti | `SHA256SUMS.txt`, `THIRD-PARTY-NOTICES.txt`, `DEPENDENCIES.json`, `FFmpeg-source.tar.gz` |
 
 Windows e Linux usano archivi portatili per tenere la prima distribuzione circoscritta al runtime Electron e ai file di KubeContext. Il workflow genera pacchetti senza firma di distribuzione. Per una distribuzione firmata, configura identità di firma e notarizzazione sui runner pertinenti e verifica gli asset risultanti. [Firma dei pacchetti Electron](https://www.electron.build/code-signing)
 
-Prima di premere **Publish release**, verifica la bozza e allega le sorgenti corrispondenti richieste per i componenti nativi, secondo la [verifica licenze](licenze.md). Se aggiungi asset dopo la pipeline, aggiorna anche `SHA256SUMS.txt`. Per le release successive aggiorna la versione di `package.json` e `package-lock.json` prima di creare il tag. [Gestione delle release GitHub](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository)
+Prima di premere **Publish release**, verifica i pacchetti e gli avvisi dei componenti nativi per ogni piattaforma. La pipeline allega il sorgente FFmpeg con le patch applicate e il codice Electron dello stesso tag. Se altri componenti inclusi richiedono sorgenti corrispondenti, aggiungili alla bozza e aggiorna `SHA256SUMS.txt`. Per le release successive aggiorna la versione di `package.json` e `package-lock.json` prima di creare il tag. [Verifica licenze](licenze.md) · [Gestione delle release GitHub](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository)
 
 ## Anteprima del sito
 

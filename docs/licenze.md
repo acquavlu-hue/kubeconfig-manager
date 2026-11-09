@@ -14,7 +14,7 @@ Ogni pacchetto include `THIRD-PARTY-NOTICES.txt`, `LICENSE.electron.txt`, `LICEN
 
 Per l’attuale lockfile il runtime è **Electron 45.2.3**. Il suo `DEPS` fissa **Chromium 156.0.8078.80** e **Node.js 24.22.2**. Il `DEPS` di Chromium fissa **FFmpeg `9db86ce5b5b454dfc96c435f9f0723012980c37f`**. Electron applica anche le patch del proprio tag in `patches/ffmpeg`. [DEPS Electron](https://github.com/electron/electron/blob/v45.2.3/DEPS), [DEPS Chromium](https://github.com/chromium/chromium/blob/156.0.8078.80/DEPS), [Revisione FFmpeg](https://chromium.googlesource.com/chromium/third_party/ffmpeg/+/9db86ce5b5b454dfc96c435f9f0723012980c37f), [Patch Electron](https://github.com/electron/electron/tree/v45.2.3/patches/ffmpeg)
 
-Gli archivi automatici del sorgente Electron contengono il repository Electron e i riferimenti alle dipendenze. Le sorgenti corrispondenti dei componenti soggetti a obbligo di distribuzione, comprese le modifiche effettive e le istruzioni pertinenti, vanno rese disponibili insieme ai binari quando richiesto. [Struttura del sorgente Electron](https://www.electronjs.org/docs/latest/development/source-code-directory-structure), [Indicazioni FFmpeg](https://ffmpeg.org/legal.html)
+La pipeline genera `FFmpeg-source.tar.gz` con il sorgente FFmpeg, le patch applicate nell’ordine upstream e il codice Electron dello stesso tag con i file GN usati per la build. Il comando `bash scripts/bundle-ffmpeg-source.sh release/FFmpeg-source.tar.gz` rigenera l’archivio in locale. Quando aggiorni Electron, verifica e aggiorna la versione e la revisione fissate nello script. [Struttura del sorgente Electron](https://www.electronjs.org/docs/latest/development/source-code-directory-structure), [Indicazioni FFmpeg](https://ffmpeg.org/legal.html)
 
 Prima di rendere pubblica la release:
 
@@ -22,4 +22,4 @@ Prima di rendere pubblica la release:
 2. Predisponi l’accesso alle sorgenti corrispondenti richieste per gli esatti componenti distribuiti. Verifica la configurazione della build FFmpeg, gli eventuali codec abilitati e i relativi requisiti per la distribuzione prevista.
 3. Allegali alla release o indica dalla stessa pagina la posizione delle sorgenti verificate. Mantieni disponibili sorgenti e avvisi per le versioni binarie che distribuisci.
 
-La pipeline prepara la bozza con inventario, avvisi e checksum. La decisione di pubblicare i binari segue la verifica delle sorgenti native e la scelta della licenza del progetto.
+La pipeline prepara la bozza con inventario, avvisi, sorgente FFmpeg e checksum. La decisione di pubblicare i binari segue la verifica delle sorgenti native richieste per ciascun pacchetto.

@@ -1,6 +1,7 @@
 {
   "name": "kubecontext-manager",
   "version": "0.3.0",
+  "license": "MIT",
   "description": "Desktop, tray and CLI Kubernetes context manager",
   "private": true,
   "type": "module",

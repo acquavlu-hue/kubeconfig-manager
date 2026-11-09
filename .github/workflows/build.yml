@@ -101,11 +101,16 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
           pattern: KubeContext-*
           path: release-assets
           merge-multiple: true
+      - name: Bundle corresponding FFmpeg source
+        run: bash scripts/bundle-ffmpeg-source.sh release-assets/FFmpeg-source.tar.gz
       - name: Create draft release with checksums
         shell: bash
         working-directory: release-assets
@@ -115,7 +120,7 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          sha256sum -- KubeContext-* DEPENDENCIES.json THIRD-PARTY-NOTICES.txt > SHA256SUMS.txt
+          sha256sum -- KubeContext-* FFmpeg-source.tar.gz DEPENDENCIES.json THIRD-PARTY-NOTICES.txt > SHA256SUMS.txt
           gh release create "$RELEASE_TAG" --verify-tag --draft --generate-notes \
             --title "KubeContext $RELEASE_TAG" \
-            KubeContext-* DEPENDENCIES.json THIRD-PARTY-NOTICES.txt SHA256SUMS.txt
+            KubeContext-* FFmpeg-source.tar.gz DEPENDENCIES.json THIRD-PARTY-NOTICES.txt SHA256SUMS.txt

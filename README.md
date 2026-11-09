@@ -2,7 +2,7 @@
 
 App desktop per macOS, Windows e Linux per gestire i contesti Kubernetes da finestra, barra di sistema e CLI. KubeContext legge e modifica kubeconfig locali. Per operare sui cluster dalla shell servono `kubectl` o gli altri strumenti che usi abitualmente.
 
-[Release e download](https://github.com/acquavlu-hue/kubeconfig-manager/releases) · [Guida alla pubblicazione](docs/pubblicazione.md) · [Licenze delle dipendenze](docs/licenze.md)
+[Release e download](https://github.com/acquavlu-hue/kubeconfig-manager/releases) · [Guida alla pubblicazione](docs/pubblicazione.md) · [Licenza MIT](LICENSE) · [Licenze delle dipendenze](docs/licenze.md)
 
 ## Installazione e avvio
 
