@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { version } from '../../package.json';
 import { ArrowDownToLine, ArrowRight, Check, CheckCheck, ChevronRight, CircleDot, Command, Copy, FileCode2, FolderOpen, GitBranch, Hexagon, KeyRound, Layers3, LoaderCircle, LockKeyhole, Palette, Plus, RefreshCw, Search, Server, Settings2, ShieldCheck, Star, Terminal, Upload, X } from 'lucide-react';
 import { FolderHeader, FolderModal } from './Folders';
 import { Modal } from './Modal';
@@ -103,7 +104,7 @@ export default function App() {
       <div className="sidebar-bottom">
         <div className="tray-tip"><Command size={19} /><strong>Un contesto, un gesto.</strong><p>Apri l’app da ovunque con</p><kbd>{navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'} ⇧ K</kbd></div>
         <div className="local-status"><span className="status-dot" /><span>Tutto sul tuo dispositivo</span><LockKeyhole size={12} /></div>
-        <div className="version">KubeContext <span>v0.3.0</span></div>
+        <div className="version">KubeContext <span>v{version}</span></div>
       </div>
     </aside>
 

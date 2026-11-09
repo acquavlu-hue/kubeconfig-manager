@@ -15,11 +15,13 @@ const inventory = Object.entries(packages).filter(([path]) => path).map(([path, 
   return { path, name, version: entry.version, license: entry.license, scope: shipped ? 'distribution' : 'build' };
 });
 
+const electron = packages['node_modules/electron'].version;
 const output = 'dist/licenses';
 await mkdir(output, { recursive: true });
 const notices = ['KubeContext — Third-party notices',
   'See DEPENDENCIES.json for the npm lockfile inventory.',
   'Electron embeds Chromium and Node.js, including FFmpeg (see LICENSES.chromium.html).',
+  `Electron source tree and build configuration: https://github.com/electron/electron/tree/v${electron}`,
   'Corresponding source information and distribution notes: https://github.com/acquavlu-hue/kubeconfig-manager/blob/main/docs/licenze.md'];
 
 for (const entry of inventory.filter(item => item.scope === 'distribution')) {
@@ -35,7 +37,6 @@ for (const entry of inventory.filter(item => item.scope === 'distribution')) {
   for (const file of files) notices.push(`--- ${basename(file)} ---\n${(await readFile(file, 'utf8')).trimEnd()}`);
 }
 
-const electron = packages['node_modules/electron'].version;
 const runtime = 'node_modules/electron/dist';
 if ((await readFile(join(runtime, 'version'), 'utf8')).trim() !== electron) {
   throw new Error(`Runtime Electron diverso dal lockfile (${electron}).`);

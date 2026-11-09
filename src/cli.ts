@@ -1,6 +1,7 @@
 import { parseArgs } from 'node:util';
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
+import { version } from '../package.json';
 import { KubeconfigManager } from './core/kubeconfig';
 import { configPath, expandPath, saveConfigPath } from './core/settings';
 import { ContextWorkspace, contextId, selectFolder, STANDARD_FOLDER } from './core/workspace';
@@ -57,7 +58,7 @@ async function run(): Promise<void> {
       name: { type: 'string' }, 'no-recursive': { type: 'boolean' },
     },
   });
-  if (values.version) { console.log('0.3.0'); return; }
+  if (values.version) { console.log(version); return; }
   if (values.help || !positionals.length) { console.log(help); return; }
   const [command, argument] = positionals;
   const workspace = new ContextWorkspace(values.kubeconfig);
